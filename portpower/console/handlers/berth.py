@@ -1,12 +1,16 @@
-"""Berth inventory, occupancy and allocation endpoints."""
+"""Berth inventory, occupancy and allocation endpoints.
+
+The mutating endpoints are thin legacy wrappers over the unified
+:mod:`portpower.berth.arbitration` engine, so ad-hoc allocation from the old
+API is judged by exactly the same rules as ``/berth/walkin``.
+"""
 
 from __future__ import annotations
 
-from portpower.berth.assignment import allocate as allocate_berth
-from portpower.berth.assignment import occupant, vacate
 from portpower.berth.registry import NoBerthAvailable
+from portpower.console.handlers.arbitration import reconcile_fleet
 from portpower.console.http import Request, Response
-from portpower.console.validation import require_text
+from portpower.console.validation import optional_text, require_text
 
 
 def berths(runtime, request: Request) -> Response:
@@ -35,19 +39,31 @@ def berth_detail(runtime, request: Request) -> Response:
 
 
 def allocate(runtime, request: Request) -> Response:
+    """Legacy ad-hoc allocation.
+
+    Judged like a walk-in that does not accept a queue: it either lands in a
+    free berth/gap, pre-empts a future booking (R22), or gets 409.
+    """
+
     payload = request.json_object()
     ship = require_text(payload, "ship")
-    code = allocate_berth(runtime.berths, runtime.catalog, ship)
-    if code is None:
-        raise NoBerthAvailable("no berth available")
-    runtime.fleet.add(ship).moor(code)
-    return Response.json(200, {"berth": code})
+    preferred = optional_text(payload, "berth")
+    stay_end = optional_text(payload, "stay_end") or None
+    decision = runtime.arbiter.walk_in(
+        ship=ship,
+        stay_end=stay_end,
+        preferred_berth=preferred,
+        enqueue_if_blocked=False,
+    )
+    reconcile_fleet(runtime)
+    if decision.outcome.value != "accepted":
+        raise NoBerthAvailable(f"no berth available ({decision.rule.value})")
+    return Response.json(200, {"berth": decision.berth, "decision": decision.as_dict()})
 
 
 def release_berth(runtime, request: Request) -> Response:
     payload = request.json_object()
     code = require_text(payload, "berth")
-    ship = occupant(runtime.berths, code)
-    if ship is not None:
-        runtime.fleet.undock(ship)
-    return Response.json(200, {"vacated": vacate(runtime.berths, code)})
+    decision = runtime.arbiter.vacate(code)
+    reconcile_fleet(runtime)
+    return Response.json(200, {"vacated": True, "decision": decision.as_dict()})

@@ -77,8 +77,7 @@ def run_connect(runtime, request: ConnectRequest) -> ConnectResult:
     _validate(runtime, request)
 
     connection_id = str(uuid4())
-    berth = runtime.berths.add(request.berth)
-    berth.assign(request.ship)
+    runtime.occupancy.occupy(request.berth, request.ship)
     vessel = runtime.fleet.add(request.ship)
     vessel.moor(request.berth)
     rollback = _Rollback(runtime, request)
@@ -98,7 +97,6 @@ def run_connect(runtime, request: ConnectRequest) -> ConnectResult:
             raise BadRequest("invalid ship power profile")
         runtime.profiles.save(profile)
         runtime.history.append(profile)
-        runtime.mapping.bind(request.berth, request.ship)
         runtime.binder.bind(Binding(berth=request.berth, ship=request.ship))
 
         meter = Meter(f"meter-{request.berth}", request.berth, runtime.store)
@@ -178,11 +176,9 @@ class _Rollback:
     def undo(self) -> None:
         runtime = self._runtime
         request = self._request
-        berth = runtime.berths.get(request.berth)
-        if berth is not None and berth.ship_id == request.ship:
-            runtime.berths.release(request.berth)
+        if runtime.occupancy.occupant(request.berth) == request.ship:
+            runtime.occupancy.release(request.berth)
         runtime.binder.unbind(request.berth)
-        runtime.mapping.unbind(request.berth)
         runtime.fleet.undock(request.ship)
         if runtime.shore.closed:
             open_breaker(runtime.shore)

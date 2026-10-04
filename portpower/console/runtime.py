@@ -5,9 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from portpower.audit.ledger import Ledger
+from portpower.berth.arbitration.arbiter import Arbiter
+from portpower.berth.arbitration.clock import SystemClock
+from portpower.berth.arbitration.notice import Outbox
+from portpower.berth.arbitration.occupancy import Occupancy
+from portpower.berth.arbitration.repository import ArbitrationRepository
 from portpower.berth.mapping import BerthMapping
 from portpower.berth.registry import BerthRegistry
-from portpower.berth.schedule import Scheduler
+from portpower.berth.scheduler_facade import Scheduler
 from portpower.cable.cable import Cable
 from portpower.cable.filter import MovingAverageFilter
 from portpower.cable.inventory import CableInventory
@@ -59,6 +64,10 @@ class Runtime:
     tariff: Tariff
     monitor: TemperatureMonitor
     scheduler: Scheduler
+    arbitration: ArbitrationRepository
+    arbiter: Arbiter
+    outbox: Outbox
+    occupancy: Occupancy
     history: ProfileHistory
     phase: PhaseState
     shore: Breaker
@@ -77,15 +86,30 @@ def build_runtime(harbor: Harbor, store: RecordStore) -> Runtime:
     cable_id, cable_rating = SHORE_CABLE
     cables.add(cable_id, cable_rating)
 
+    mapping = BerthMapping(store)
+    occupancy = Occupancy(berths, mapping)
+    occupancy.hydrate()
+    arbitration = ArbitrationRepository(store)
+    ledger = Ledger(store)
+    outbox = Outbox(store)
+    arbiter = Arbiter(
+        repository=arbitration,
+        occupancy=occupancy,
+        catalog=catalog,
+        outbox=outbox,
+        ledger=ledger,
+        clock=SystemClock(),
+    )
+
     return Runtime(
         harbor=harbor,
         catalog=catalog,
         store=store,
-        ledger=Ledger(store),
+        ledger=ledger,
         quotas=QuotaManager(store),
         profiles=ProfileRegistry(store),
         fleet=Fleet(),
-        mapping=BerthMapping(store),
+        mapping=mapping,
         berths=berths,
         binder=Binder(store),
         syncer=Syncer(store),
@@ -95,10 +119,14 @@ def build_runtime(harbor: Harbor, store: RecordStore) -> Runtime:
         cables=cables,
         tariff=Tariff(TARIFF_RATE),
         monitor=TemperatureMonitor(MONITOR_WINDOW),
-        scheduler=Scheduler(store),
+        scheduler=Scheduler(store, arbitration),
         history=ProfileHistory(store),
         phase=PhaseState(),
         shore=Breaker(SHORE_BREAKER_ID),
         protector=Protector(PROTECTION_THRESHOLD, filter_window),
         limiter=LimitEnforcer(ProfileRegistry(store)),
+        arbitration=arbitration,
+        arbiter=arbiter,
+        outbox=outbox,
+        occupancy=occupancy,
     )

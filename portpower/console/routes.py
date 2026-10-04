@@ -5,6 +5,7 @@ from __future__ import annotations
 from functools import partial
 
 from portpower.console.handlers import (
+    arbitration,
     audit,
     berth,
     breaker,
@@ -74,6 +75,21 @@ def build_router(runtime) -> Router:
     router.post("/reservation", bind(schedule.reservation_book, runtime))
     router.get("/reservations", bind(schedule.reservation_list, runtime))
     router.delete("/reservation", bind(schedule.reservation_cancel, runtime))
+
+    # Unified arbitration: reservations and walk-ins judged by one rule set.
+    router.post("/berth/booking", bind(arbitration.booking_create, runtime))
+    router.get("/berth/bookings", bind(arbitration.booking_list, runtime))
+    router.get("/berth/booking", bind(arbitration.booking_detail, runtime))
+    router.post("/berth/booking/arrive", bind(arbitration.booking_arrive, runtime))
+    router.post("/berth/booking/rebook", bind(arbitration.booking_rebook, runtime))
+    router.post("/berth/booking/cancel", bind(arbitration.booking_cancel, runtime))
+    router.post("/berth/walkin", bind(arbitration.walk_in, runtime))
+    router.get("/berth/queue", bind(arbitration.queue_list, runtime))
+    router.post("/berth/queue/cancel", bind(arbitration.queue_cancel, runtime))
+    router.post("/berth/sweep", bind(arbitration.sweep, runtime))
+    router.post("/berth/arbitrate/vacate", bind(arbitration.vacate, runtime))
+    router.get("/berth/notices", bind(arbitration.notices, runtime))
+    router.post("/berth/notices/delivered", bind(arbitration.notice_deliver, runtime))
 
     router.get("/cables", bind(cable.cables, runtime))
     router.get("/cable/monitor", bind(cable.cable_monitor, runtime))

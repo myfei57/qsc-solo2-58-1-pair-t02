@@ -83,9 +83,16 @@ def make_http_server(
 class ConsoleServer:
     """Owns the HTTP server and the background serving thread."""
 
-    def __init__(self, router: Router, host: str, port: int) -> None:
+    def __init__(
+        self,
+        router: Router,
+        host: str,
+        port: int,
+        sweeper=None,
+    ) -> None:
         self._httpd = make_http_server(router, host, port)
         self._thread: threading.Thread | None = None
+        self._sweeper = sweeper
 
     @property
     def address(self) -> tuple[str, int]:
@@ -100,6 +107,8 @@ class ConsoleServer:
     def start(self) -> None:
         if self._thread is not None:
             raise RuntimeError("server already started")
+        if self._sweeper is not None:
+            self._sweeper.start()
         self._thread = threading.Thread(
             target=self._httpd.serve_forever,
             name="console-server",
@@ -113,3 +122,6 @@ class ConsoleServer:
         if self._thread is not None:
             self._thread.join(timeout=5)
             self._thread = None
+        if self._sweeper is not None:
+            self._sweeper.stop()
+            self._sweeper = None

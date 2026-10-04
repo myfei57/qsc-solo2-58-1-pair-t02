@@ -69,11 +69,9 @@ def run_disconnect(runtime, request: DisconnectRequest) -> DisconnectResult:
     meter = Meter(f"meter-{request.berth}", request.berth, runtime.store)
     frozen = freeze(meter)
 
-    berth = runtime.berths.get(request.berth)
-    if berth is not None and berth.ship_id == ship:
-        runtime.berths.release(request.berth)
+    if runtime.occupancy.occupant(request.berth) == ship:
+        runtime.occupancy.release(request.berth)
     runtime.fleet.undock(ship)
-    runtime.mapping.unbind(request.berth)
 
     release(connector)
     runtime.protector.open_and_reset(runtime.shore)

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from portpower.berth.arbitration.arbiter import (
+    BookingWindowConflict,
+    ReservationNotReady,
+)
 from portpower.berth.berth import BerthOccupied, BerthVacant
 from portpower.berth.registry import NoBerthAvailable
 from portpower.berth.schedule import ReservationConflict
@@ -22,6 +26,8 @@ CONFLICT_ERRORS: tuple[type[Exception], ...] = (
     BerthOccupied,
     BerthVacant,
     ReservationConflict,
+    BookingWindowConflict,
+    ReservationNotReady,
     NoBerthAvailable,
     BreakerNotClosed,
     BreakerAlreadyClosed,

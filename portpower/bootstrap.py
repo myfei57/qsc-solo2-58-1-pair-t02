@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 
+from portpower.berth.arbitration.sweeper import TimeoutSweeper
 from portpower.config import Settings, load_settings
 from portpower.console.routes import build_router
 from portpower.console.runtime import build_runtime
@@ -16,6 +17,7 @@ LOGGER = logging.getLogger("portpower")
 
 DEFAULT_HARBOR_ID = "pp-north"
 DEFAULT_HARBOR_NAME = "port-north"
+SWEEP_INTERVAL_SECONDS = 30.0
 
 
 def create_server(settings: Settings | None = None) -> ConsoleServer:
@@ -27,7 +29,8 @@ def create_server(settings: Settings | None = None) -> ConsoleServer:
     harbor = Harbor(DEFAULT_HARBOR_ID, DEFAULT_HARBOR_NAME)
     runtime = build_runtime(harbor, store)
     router = build_router(runtime)
-    return ConsoleServer(router, resolved.host, resolved.port)
+    sweeper = TimeoutSweeper(runtime.arbiter, SWEEP_INTERVAL_SECONDS)
+    return ConsoleServer(router, resolved.host, resolved.port, sweeper=sweeper)
 
 
 def main() -> int:
