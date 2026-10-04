@@ -5,7 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from portpower.audit.ledger import Ledger
+from portpower.berth.arbitrate import Arbiter
+from portpower.berth.decisions import DecisionLog
 from portpower.berth.mapping import BerthMapping
+from portpower.berth.queue import WaitQueue
 from portpower.berth.registry import BerthRegistry
 from portpower.berth.schedule import Scheduler
 from portpower.cable.cable import Cable
@@ -59,6 +62,7 @@ class Runtime:
     tariff: Tariff
     monitor: TemperatureMonitor
     scheduler: Scheduler
+    arbiter: Arbiter
     history: ProfileHistory
     phase: PhaseState
     shore: Breaker
@@ -77,14 +81,27 @@ def build_runtime(harbor: Harbor, store: RecordStore) -> Runtime:
     cable_id, cable_rating = SHORE_CABLE
     cables.add(cable_id, cable_rating)
 
+    ledger = Ledger(store)
+    fleet = Fleet()
+    scheduler = Scheduler(store)
+    arbiter = Arbiter(
+        registry=berths,
+        catalog=catalog,
+        scheduler=scheduler,
+        queue=WaitQueue(store),
+        decisions=DecisionLog(store),
+        ledger=ledger,
+        fleet=fleet,
+    )
+
     return Runtime(
         harbor=harbor,
         catalog=catalog,
         store=store,
-        ledger=Ledger(store),
+        ledger=ledger,
         quotas=QuotaManager(store),
         profiles=ProfileRegistry(store),
-        fleet=Fleet(),
+        fleet=fleet,
         mapping=BerthMapping(store),
         berths=berths,
         binder=Binder(store),
@@ -95,7 +112,8 @@ def build_runtime(harbor: Harbor, store: RecordStore) -> Runtime:
         cables=cables,
         tariff=Tariff(TARIFF_RATE),
         monitor=TemperatureMonitor(MONITOR_WINDOW),
-        scheduler=Scheduler(store),
+        scheduler=scheduler,
+        arbiter=arbiter,
         history=ProfileHistory(store),
         phase=PhaseState(),
         shore=Breaker(SHORE_BREAKER_ID),

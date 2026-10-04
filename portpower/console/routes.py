@@ -49,7 +49,12 @@ def build_router(runtime) -> Router:
     router.get("/berth/status", bind(berth.berth_status, runtime))
     router.get("/berth", bind(berth.berth_detail, runtime))
     router.post("/berth/allocate", bind(berth.allocate, runtime))
+    router.post("/berth/arrive", bind(berth.arrive, runtime))
     router.post("/berth/vacate", bind(berth.release_berth, runtime))
+    router.post("/berth/sweep", bind(berth.sweep, runtime))
+    router.get("/berth/decisions", bind(berth.berth_decisions, runtime))
+    router.get("/berth/queue", bind(berth.berth_queue, runtime))
+    router.get("/berth/rules", bind(berth.berth_rules, runtime))
 
     router.get("/ships", bind(ship.ships, runtime))
     router.get("/ship", bind(ship.ship_detail, runtime))
@@ -74,6 +79,7 @@ def build_router(runtime) -> Router:
     router.post("/reservation", bind(schedule.reservation_book, runtime))
     router.get("/reservations", bind(schedule.reservation_list, runtime))
     router.delete("/reservation", bind(schedule.reservation_cancel, runtime))
+    router.post("/reservation/rebook", bind(schedule.reservation_rebook, runtime))
 
     router.get("/cables", bind(cable.cables, runtime))
     router.get("/cable/monitor", bind(cable.cable_monitor, runtime))
